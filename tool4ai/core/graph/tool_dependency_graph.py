@@ -3,6 +3,7 @@ from typing import Dict, List, Any, Callable, Set, Optional
 from collections import deque
 from ..models import SubQuery, SubQueryResponse, ExecutionResult, ExecutionStatus
 from ...storages import BaseStorage, JSONStorage
+from ..toolkit import Toolkit
 from .execution_strategy import DefaultExecutionStrategy
 from .visualization import GraphVisualizer
 from .result_generator import ResultGenerator
@@ -107,6 +108,30 @@ class ToolDependencyGraph:
 
     async def execute(
         self,
+        toolit: Toolkit,
+        context: Dict[str, Any],
+        tool_maker: Any,
+        final_prompt: Optional[str] = None,
+        verbose: bool = False,
+        generate_interim_messages: bool = False,
+        add_human_failed_memory: bool = False,
+        resume_from_level: int = 0,
+    ) -> ExecutionResult:
+        return await self.execution_strategy.execute(
+            self,
+            tool_functions = toolit.tool_function_map,
+            tools_info = toolit.to_json_schema(),
+            context = context,
+            tool_maker = tool_maker,
+            final_prompt = final_prompt,
+            verbose = verbose,
+            generate_interim_messages = generate_interim_messages,
+            add_human_failed_memory = add_human_failed_memory,
+            resume_from_level = resume_from_level,
+        )
+
+    async def execute(
+        self,
         tool_functions: Dict[str, Callable],
         tools_info: Dict[str, Dict[str, Any]],
         context: Dict[str, Any],
@@ -130,6 +155,32 @@ class ToolDependencyGraph:
             resume_from_level,
         )
 
+    async def resume_execution(
+        self,
+        user_input: str,
+        toolkit: Toolkit,
+        context: Dict[str, Any],
+        tool_maker: Any,
+        verbose: bool = False,
+        generate_interim_messages: bool = False,
+        add_human_failed_memory = False,
+        generate_sub_queries = False,
+        classofy_for_new_discussion = True,
+    ) -> ExecutionResult:
+        return await self.execution_strategy.resume_execution(
+            self,
+            user_input = user_input,
+            tool_functions = toolkit.tool_function_map,
+            tools_info = toolkit.to_json_schema(),
+            context = context,
+            tool_maker = tool_maker,
+            verbose = verbose,
+            generate_interim_messages = generate_interim_messages,
+            add_human_failed_memory = add_human_failed_memory,
+            generate_sub_queries = generate_sub_queries,
+            classofy_for_new_discussion = classofy_for_new_discussion,
+        )
+    
     async def resume_execution(
         self,
         user_input: str,

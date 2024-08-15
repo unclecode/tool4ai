@@ -4,20 +4,25 @@ from typing import Dict, List, Optional
 from .tool import Tool
 
 class Toolkit:
-    def __init__(self):
+    def __init__(self, tool_function_map: Dict[str, Tool] = None):
         self.tools: Dict[str, Tool] = {}
         self.id_to_name: Dict[str, str] = {}
         self.name_to_id: Dict[str, str] = {}
+        self.tool_function_map = tool_function_map or {}
 
     def add_tool(self, tool: Tool) -> None:
         self.tools[tool.id] = tool
         self.id_to_name[tool.id] = tool.name
         self.name_to_id[tool.name] = tool.id
+        self.tool_function_map[tool.name] = tool.f
 
     def remove_tool(self, tool_id: str) -> None:
         tool = self.tools.get(tool_id)
         if tool.id in self.tools:
             del self.tools[tool_id]
+            del self.id_to_name[tool.id]
+            del self.name_to_id[tool.name]
+            del self.tool_function_map[tool.name]
 
     def get_tool(self, tool_id_or_name: str) -> Optional[Tool]:
         tool = self.tools.get(tool_id_or_name)

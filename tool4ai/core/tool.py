@@ -1,6 +1,6 @@
 # File: tool4ai/core/tool.py
 
-from typing import Union, Dict, Any
+from typing import Union, Dict, Any, Callable
 from pydantic import BaseModel
 import json, uuid
 
@@ -9,11 +9,12 @@ class Tool:
     Represents a single tool or function that can be called by the AI.
     """
 
-    def __init__(self, name: str, schema: Union[str, Dict[str, Any]], description: str):
+    def __init__(self, name: str, schema: Union[str, Dict[str, Any]], description: str, f: Callable = None):
         self.id : str = str(uuid.uuid4()) 
         self.name : str = name
         self.schema : Dict[str, Any] = schema if isinstance(schema, Dict) else json.loads(schema)
         self.description : str = description
+        self.f : Callable = f
 
     
     def to_json_schema(self) -> Dict[str, Any]:
