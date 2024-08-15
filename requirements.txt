@@ -1,0 +1,5 @@
+# File: requirements.txt
+
+numpy>=2.0.1
+litellm>=1.43.4
+pyyaml>=5.3
