@@ -10,6 +10,8 @@ import copy
 class ExecutionStrategy(ABC):
     def __init__(self):
         self.last_context = None
+        self.issue = None
+        self.help = None
         pass
     @abstractmethod
     async def execute(
@@ -82,6 +84,9 @@ class DefaultExecutionStrategy(ExecutionStrategy):
     ) -> ExecutionResult:
         execution_order = graph.get_execution_order()
         memory = context.get("memory", [])
+        
+        sub_query_need_attention = None
+        pasued_level = -1
 
         try:
             for level, indices in enumerate(
@@ -111,25 +116,39 @@ class DefaultExecutionStrategy(ExecutionStrategy):
 
                 # update level status
                 for sq in level_sub_queries:
-                    if sq.status in ["failed", "human"]:
+                    if sq.status != "success":
                         graph.level_status[level] = sq.status
+                        sub_query_need_attention = sq
+                        pasued_level = level
                         break
 
-                # Update memory
+                # Update memory with successful sub-queries
                 for item in level_results:
-                    sq, memory_entry = item["sub_query"], item["memory"]
+                    sq = item["sub_query"]
                     if sq.status == "success":
-                        memory.extend(memory_entry)
-                if add_human_failed_memory:
-                    for item in level_results:
-                        sq, memory_entry = item["sub_query"], item["memory"]
-                        if sq.status in ["failed", "human"]:
-                            memory.extend(memory_entry)
+                        memory.extend(sq.internal_memory)
 
+                # if add_human_failed_memory:
+                #     # Update memory with fsile or error sub-queries
+                #     for item in level_results:
+                #         sq = item["sub_query"]
+                #         if sq.status in ["failed", "error"]:
+                #             memory.extend(sq.internal_memory)
+                            
+                #     # Update memory with human sub-queries
+                #     for item in level_results:
+                #         sq = item["sub_query"]
+                #         if sq.status == "human":
+                #             memory.extend(sq.internal_memory)
+                
+                # Check if any failed sub-query 
+                self.issue = ["\n".join(sq.issue) for sq in level_sub_queries if sq.issue]
+                self.help = ["\n".join(sq.help) for sq in level_sub_queries if sq.help]
+                
                 # update graph status
                 graph.update_graph_status()
 
-                if graph.level_status[level] in ["failed", "human"]:
+                if graph.level_status[level] != "success":
                     if generate_interim_messages:
                         interim_message, usages = (
                             await graph.result_generator.generate_interim_message(
@@ -155,25 +174,33 @@ class DefaultExecutionStrategy(ExecutionStrategy):
             self.last_context = context
             
             # check for all orphan sub queries, udated their index a
-            for index, sub_query in graph.sub_queries.items():
-                if sub_query.is_orphan:
-                    sub_query.is_orphan = False
-                    sub_query.index = len(graph.sub_queries)
-                    graph.sub_queries[len(graph.sub_queries)] = sub_query
+            # for index, sub_query in graph.sub_queries.items():
+            #     if sub_query.is_orphan:
+            #         sub_query.is_orphan = False
+            #         sub_query.index = len(graph.sub_queries)
+            #         graph.sub_queries[len(graph.sub_queries)] = sub_query
             
             return ExecutionResult(
                 status=ExecutionStatus(graph.graph_status),
-                message=f"Execution {graph.graph_status}.",
+                message= "Execution of the graph",
+                help = self.help,
+                issue = self.issue,
                 memory=memory,
                 sub_queries=list(graph.sub_queries.values()),
+                sub_query_need_attention=sub_query_need_attention,
+                pasued_level=pasued_level,
             )
 
         except Exception as e:
             return ExecutionResult(
                 status=ExecutionStatus.FAILED,
                 message=f"Execution failed: {str(e)}",
+                help = self.help,
+                issue = self.issue,
                 memory=memory,
                 sub_queries=list(graph.sub_queries.values()),
+                sub_query_need_attention=sub_query_need_attention,
+                pasued_level=pasued_level,
                 error_info={"error_type": type(e).__name__, "error_message": str(e)},
             )
     
@@ -209,9 +236,10 @@ class DefaultExecutionStrategy(ExecutionStrategy):
         generate_interim_messages: bool = False,
         add_human_failed_memory = False,
         generate_sub_queries = False,
-        classofy_for_new_discussion = True,
+        classify_for_new_discussion = True,
+        last_result: ExecutionResult = None,
     ) -> ExecutionResult:
-        if classofy_for_new_discussion:
+        if classify_for_new_discussion:
             classification, usage = await graph.result_generator.classify_user_input(
                 tool_maker, user_input, context
             )
@@ -225,28 +253,61 @@ class DefaultExecutionStrategy(ExecutionStrategy):
                     sub_queries=list(graph.sub_queries.values()),
                 )
 
-        resume_from_level = max(graph.level_status.keys()) if graph.level_status else 0
+        resume_from_level = last_result.pasued_level if last_result else 0
+        sub_query_need_attention = last_result.sub_query_need_attention if last_result else None
+        if not sub_query_need_attention:
+            raise ValueError("No sub-query to resume from")
         
-        execution_order = graph.get_execution_order()
-        
-        level_sub_queries =[graph.sub_queries[idx] for idx in execution_order[resume_from_level]]
-
-        if generate_sub_queries:
-            sub_queries : SubQueryResponse = graph.router.gen_subquery(graph, user_input)
-            for sub_query in level_sub_queries:
-                if sub_query.status in ["failed", "human"]:
-                    sub_query.status = "success"
-                    sub_query.issue = ""
-            # Append new sub queries to the same level
-            graph.sub_queries[resume_from_level].extend(sub_queries.sub_queries)
+        if sub_query_need_attention.status == "human":
+            sub_query_need_attention.internal_memory.append({"role": "assistant", "content": "\n".join(sub_query_need_attention.help)})
+            sub_query_need_attention.internal_memory.append({"role": "user", "content": user_input})
+        elif sub_query_need_attention.status in ["failed", "error"]:
+            sub_query_need_attention.internal_memory.append({"role": "assistant", "content": "\n".join(sub_query_need_attention.issue)})
+            sub_query_need_attention.internal_memory.append({"role": "user", "content": user_input})
         else:
-            for sub_query in level_sub_queries:
-                if sub_query.status in ["failed", "human"]:
-                    sub_query.status = "pending"
-                    sub_query.issue = None
-                    sub_query.result = None
-                    sub_query.task = user_input
-                    sub_query.sub_query = user_input
+            sub_query_need_attention.internal_memory.append({"role": "assistant", "content": "Please, help me understand what you mean, or provide more information."})
+            sub_query_need_attention.internal_memory.append({"role": "user", "content": user_input})
+
+        # sub_query_need_attention.status = "pending"
+        # sub_query_need_attention.help = None
+        # sub_query_need_attention.issue = None
+        # sub_query_need_attention.result = None
+        
+                
+        
+        # resume_from_level = max(graph.level_status.keys()) if graph.level_status else 0
+        
+        # execution_order = graph.get_execution_order()
+        
+        # level_sub_queries =[graph.sub_queries[idx] for idx in execution_order[resume_from_level]]
+
+        # if generate_sub_queries:
+        #     sub_queries : SubQueryResponse = graph.router.gen_subquery(graph, user_input)
+        #     for sub_query in level_sub_queries:
+        #         if sub_query.status in ["failed", "human"]:
+        #             sub_query.status = "success"
+        #             sub_query.issue = None
+        #             sub_query.help = None
+        #     # Append new sub queries to the same level
+        #     graph.sub_queries[resume_from_level].extend(sub_queries.sub_queries)
+        # else:
+        #     for sub_query in level_sub_queries:
+        #         if sub_query.status in ["failed", "human"]:
+        #             sub_query.status = "pending"
+        #             sub_query.issue = None
+        #             sub_query.help = None
+        #             sub_query.result = None
+        #             # sub_query.task = user_input
+        #             # sub_query.sub_query = user_input
+                    
+        # # Here we hadd the help or issue message of the sub query casued halt as assistant message
+        # if graph.graph_status == "human" and self.help:
+        #     context["memory"].append({"role": "assistant", "content": "\n".join(self.help).strip()})
+        # elif graph.graph_status in ["failed", "error"] and self.issue:
+        #     context["memory"].append({"role": "assistant", "content": "\n".join(self.issue).strip()})
+        # else:
+        #     context["memory"].append({"role": "assistant", "content": "Please, help me understand what you mean, or provide more information."})
+        # context["memory"].append({"role": "user", "content": user_input})
 
         return await self.execute(
             graph,
@@ -277,10 +338,12 @@ class DefaultExecutionStrategy(ExecutionStrategy):
                 tool: info
                 for tool, info in tools_info.items()
                 if info["name"] == original_sub_query.tool
-            }
+            } if original_sub_query.status == "pending" else tools_info
 
             message, usage = await tool_maker.make_tools(
-                original_sub_query.task, filtered_tools_info, context
+                original_sub_query.task if original_sub_query.status == "pending" else None,
+                filtered_tools_info, 
+                context.get("memory", []) + original_sub_query.internal_memory
             )
             graph.update_token_usage(usage)
             
@@ -288,48 +351,91 @@ class DefaultExecutionStrategy(ExecutionStrategy):
                 print(f"Multiple tool calls in a single message: {message}")
                 
 
-            is_orphan = False
+            sub_query = original_sub_query
+            
+            all_tools_results = []
+            prev_name = sub_query.tool
             for tool_call in message["tool_calls"]:
                 tool_name = tool_call["function"]["name"]
+                if tool_name != prev_name:
+                    print(f"Multiple tools in a single message: {message}")
+                    sub_query.other_tools.append(tool_name)
                 tool_id = tool_call["id"]
                 arguments = json.loads(tool_call["function"]["arguments"])
 
                 # Create a new sub_query for each tool call
-                sub_query = copy.deepcopy(original_sub_query) if not is_orphan else original_sub_query
-                sub_query.tool = tool_name
-                sub_query.is_orphan = is_orphan
-                is_orphan = True
+                # sub_query = copy.deepcopy(original_sub_query) if not is_orphan else original_sub_query
+                # sub_query.tool = tool_name
+                # sub_query.is_orphan = is_orphan
+                # is_orphan = True
 
+                
                 if tool_name in tool_functions:
+                    tool_result = {"tool_call_id": tool_id, "name": tool_name}
                     result = await tool_functions[tool_name](arguments)
-
-                    result_dict = json.loads(result)
-                    sub_query.status = result_dict["status"]
+                    result_dict = json.loads(result) if type(result) == str else result
+                    result_json = json.dumps(result_dict, indent=4)
+                    tool_result["result"] = result
+                    tool_result["help"] = result_dict.get("help", "")
+                    tool_result["issue"] = result_dict.get("issue", "")
+                    tool_result["status"] = result_dict.get("status", "success")
+                    
+                    # sub_query.status = result_dict["status"]
+                    # tool_result["status"] = sub_query.status
+                    
+                    message_for_signle_tool_call = copy.deepcopy(message)
+                    message_for_signle_tool_call['tool_calls'] = [tool_call]
 
                     memory_entry = [
-                        {"role": "user", "content": sub_query.task},
-                        message,
-                        {"role": "tool", "tool_call_id": tool_id, "name": tool_name},
+                        # {"role": "user", "content": sub_query.task},
+                        message_for_signle_tool_call,
+                        {"role": "tool", "tool_call_id": tool_id, "name": tool_name, "content": result_json},
                     ]
-
-                    if sub_query.status == "success":
-                        sub_query.result = json.dumps(result_dict.get("return", {}))
-                        sub_query.issue = None
-                        memory_entry[-1]["content"] = sub_query.result
-                    else:  # 'failed' or 'human'
-                        sub_query.result = result_dict.get("message", "")
-                        sub_query.issue = sub_query.result
-                        memory_entry[-1]["content"] = sub_query.result
-                        memory_entry[-1]["status"] = sub_query.status
-
-                    results.append({
-                        "index": index,
-                        "sub_query": sub_query,
-                        "status": sub_query.status,
-                        "memory": memory_entry,
-                    })
+                    tool_result["memory"] = memory_entry
+                    
+                    all_tools_results.append(tool_result)
                 else:
                     raise ValueError(f"No function found for tool {tool_name}")
+
+            from collections import Counter
+            # Count all status
+            status_counter = Counter([tool_result["status"] for tool_result in all_tools_results])
+            
+            if status_counter["success"] == len(all_tools_results):
+                sub_query.status = "success"
+            elif status_counter["failed"] == len(all_tools_results):
+                sub_query.status = "failed"
+            elif status_counter["human"] == len(all_tools_results):
+                sub_query.status = "human"
+            else:
+                sub_query.status = "partial"
+                
+            sub_query.result = json.dumps([tool_result["result"] for tool_result in all_tools_results])
+            
+            sub_query.issue = [f"Tool {tool_result['name']}, Issue {ix}: {tool_result['issue']}" for ix, tool_result in enumerate(all_tools_results) if tool_result["issue"]]
+            sub_query.help = [f"Tool {tool_result['name']}, Help {ix}: {tool_result['help']}" for ix, tool_result in enumerate(all_tools_results) if tool_result["help"]]
+            
+            # sub_query.issue = json.dumps([tool_result["issue"] for tool_result in all_tools_results])
+            # sub_query.help = json.dumps([tool_result["help"] for tool_result in all_tools_results])
+            sub_query.internal_memory = memory_entries = sum([tool_result["memory"] for tool_result in all_tools_results], [])
+            sub_query.internal_memory = memory_entries = [{"role": "user", "content": sub_query.task}] + memory_entries
+                            
+            # if sub_query.status == "success":
+            #     sub_query.result = json.dumps(result_dict.get("return", {}))
+            #     sub_query.issue = None
+            #     memory_entry[-1]["content"] = sub_query.result
+            # else:  # 'failed' or 'human'
+            #     sub_query.result = result_dict.get("message", "")
+            #     sub_query.issue = sub_query.result
+            #     memory_entry[-1]["content"] = sub_query.result
+            #     memory_entry[-1]["status"] = sub_query.status
+
+            results.append({
+                "index": index,
+                "sub_query": sub_query,
+                "status": sub_query.status,
+                "memory": memory_entries,
+            })
 
         except Exception as e:
             print(f"Error executing {original_sub_query.task}: {str(e)}")

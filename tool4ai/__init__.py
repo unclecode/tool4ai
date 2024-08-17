@@ -12,15 +12,15 @@ from .core.toolkit import Toolkit
 from .core.router import Router
 from .core.models import SubQuery, SubQueryResponse
 from .utils.dependency_graph import DependencyGraph
-from .utils.tool_dependency_graph import ToolDependencyGraph
+from .core.graph.tool_dependency_graph import ToolDependencyGraph
 from .utils.config_manager import config_manager
-from .toolmakers.llm_strategy import LLMStrategy, NativeStrategy, AnthropicStrategy
+
 
 # Version of the tool4ai package
 __version__ = "0.1.0"
 
 # Define what should be importable from the package
-__all__ = ['Tool', 'Toolkit', 'Router', 'DependencyGraph', 'config_manager', 'LLMStrategy', 'ToolDependencyGraph', 'SubQuery', 'SubQueryResponse', 'NativeStrategy', 'AnthropicStrategy']
+__all__ = ['Tool', 'Toolkit', 'Router', 'SubQuery', 'SubQueryResponse', 'DependencyGraph', 'ToolDependencyGraph', 'config_manager'] 
 
 # Package level initialization code (if any)
 def initialize():

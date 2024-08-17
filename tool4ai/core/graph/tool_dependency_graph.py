@@ -1,6 +1,7 @@
 import uuid
 from typing import Dict, List, Any, Callable, Set, Optional
 from collections import deque
+import asyncio
 from ..models import SubQuery, SubQueryResponse, ExecutionResult, ExecutionStatus
 from ...storages import BaseStorage, JSONStorage
 from ..toolkit import Toolkit
@@ -108,7 +109,7 @@ class ToolDependencyGraph:
 
     async def execute(
         self,
-        toolit: Toolkit,
+        toolkit: Toolkit,
         context: Dict[str, Any],
         tool_maker: Any,
         final_prompt: Optional[str] = None,
@@ -119,8 +120,8 @@ class ToolDependencyGraph:
     ) -> ExecutionResult:
         return await self.execution_strategy.execute(
             self,
-            tool_functions = toolit.tool_function_map,
-            tools_info = toolit.to_json_schema(),
+            tool_functions = toolkit.tool_function_map,
+            tools_info = toolkit.to_json_schema(),
             context = context,
             tool_maker = tool_maker,
             final_prompt = final_prompt,
@@ -130,7 +131,7 @@ class ToolDependencyGraph:
             resume_from_level = resume_from_level,
         )
 
-    async def execute(
+    async def _execute(
         self,
         tool_functions: Dict[str, Callable],
         tools_info: Dict[str, Dict[str, Any]],
@@ -165,7 +166,8 @@ class ToolDependencyGraph:
         generate_interim_messages: bool = False,
         add_human_failed_memory = False,
         generate_sub_queries = False,
-        classofy_for_new_discussion = True,
+        classify_for_new_discussion = True,
+        last_result: Optional[ExecutionResult] = None,
     ) -> ExecutionResult:
         return await self.execution_strategy.resume_execution(
             self,
@@ -178,10 +180,11 @@ class ToolDependencyGraph:
             generate_interim_messages = generate_interim_messages,
             add_human_failed_memory = add_human_failed_memory,
             generate_sub_queries = generate_sub_queries,
-            classofy_for_new_discussion = classofy_for_new_discussion,
+            classify_for_new_discussion = classify_for_new_discussion,
+            last_result = last_result,
         )
     
-    async def resume_execution(
+    async def _resume_execution(
         self,
         user_input: str,
         tool_functions: Dict[str, Callable],
@@ -192,7 +195,7 @@ class ToolDependencyGraph:
         generate_interim_messages: bool = False,
         add_human_failed_memory = False,
         generate_sub_queries = False,
-        classofy_for_new_discussion = True,
+        classify_for_new_discussion = True,
     ) -> ExecutionResult:
         return await self.execution_strategy.resume_execution(
             self,
@@ -205,7 +208,7 @@ class ToolDependencyGraph:
             generate_interim_messages,
             add_human_failed_memory,
             generate_sub_queries,
-            classofy_for_new_discussion,
+            classify_for_new_discussion,
         )
 
     def visualize(self, output_file: str = "tool_dependency_graph"):
@@ -239,6 +242,18 @@ class ToolDependencyGraph:
         }
         await self.storage.save(self.run_id, data)
 
+    def save_sync(self) -> None:
+        # Create a new event loop
+        loop = asyncio.new_event_loop()
+        asyncio.set_event_loop(loop)
+
+        try:
+            # Run the async save function until it completes
+            loop.run_until_complete(self.save())
+        finally:
+            # Close the event loop
+            loop.close()
+
     @classmethod
     async def load(
         cls, run_id: str, storage: Optional[BaseStorage] = None
@@ -269,6 +284,22 @@ class ToolDependencyGraph:
         graph.graph_status = data["graph_status"]
 
         return graph
+
+    @classmethod
+    def load_sync(
+        cls, run_id: str, storage: Optional[BaseStorage] = None
+    ) -> "ToolDependencyGraph":
+        # Create a new event loop
+        loop = asyncio.new_event_loop()
+        asyncio.set_event_loop(loop)
+        
+        try:
+            # Run the async load function until it completes
+            graph = loop.run_until_complete(cls.load(run_id, storage))
+            return graph
+        finally:
+            # Close the event loop
+            loop.close()
 
     async def delete(self) -> None:
         await self.storage.delete(self.run_id)

@@ -68,10 +68,10 @@ class GraphVisualizer:
         cytoscape_data = self.to_cytoscape_json(graph)
 
         try:
-            template_content = importlib.resources.read_text(__name__, "resources/graph_template.html")
+            template_content = importlib.resources.read_text(__name__, "graph_template.html")
             # template_content = resource_string(__name__, "resources/graph_template.html").decode("utf-8")
-        except FileNotFoundError:
-            template_content = importlib.resources.read_text("tool4ai", "resources/graph_template.html")
+        except:
+            template_content = importlib.resources.read_text("tool4ai.resources", "graph_template.html")
             # template_content = resource_string("tool4ai", "resources/graph_template.html").decode("utf-8")
 
         html_content = template_content.replace("{CYTOSCAPE_DATA_PLACEHOLDER}", cytoscape_data)

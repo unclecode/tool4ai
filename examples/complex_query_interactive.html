@@ -1,0 +1,158 @@
+<!DOCTYPE html>
+<html>
+    <head>
+        <title>Interactive Tool Dependency Graph</title>
+        <script src="https://cdnjs.cloudflare.com/ajax/libs/cytoscape/3.23.0/cytoscape.min.js"></script>
+        <script src="https://cdnjs.cloudflare.com/ajax/libs/dagre/0.8.5/dagre.min.js"></script>
+        <script src="https://cdn.jsdelivr.net/npm/cytoscape-dagre@2.5.0/cytoscape-dagre.min.js"></script>
+        <style>
+            body {
+                margin: 0;
+                padding: 0;
+                background-color: #333;
+            }
+            #cy {
+                width: 100%;
+                height: 100vh;
+                position: absolute;
+            }
+            #info-panel {
+                font-family: Arial, sans-serif;
+                position: absolute;
+                top: 10px;
+                right: 10px;
+                background: #009999;
+                padding: 10px;
+                border: 1px solid #00000070;
+                border-radius: 5px;
+                display: none;
+                max-width: 300px;
+                z-index: 10;
+            }
+        </style>
+    </head>
+    <body>
+        <div id="cy"></div>
+        <div id="info-panel"></div>
+        <script>
+            cytoscape.use(cytoscapeDagre);
+
+            var cy = cytoscape({
+                container: document.getElementById("cy"),
+                elements: {"nodes": [{"data": {"id": "0", "label": "retrieve_favorites\n(Task 0)", "task": "Retrieve a horror movie from the 'Scary Nights' list.", "tool": "retrieve_favorites", "actionable": true, "arguments": "{}"}}, {"data": {"id": "1", "label": "recommend_similar_movies\n(Task 1)", "task": "Recommend movies similar to the horror movie retrieved from the 'Scary Nights' list.", "tool": "recommend_similar_movies", "actionable": true, "arguments": "{}"}}, {"data": {"id": "2", "label": "add_to_favorite\n(Task 2)", "task": "Create a new favorite list with the title 'More Nightmares'.", "tool": "add_to_favorite", "actionable": true, "arguments": "{}"}}, {"data": {"id": "3", "label": "add_to_favorite\n(Task 3)", "task": "Add the similar recommended movies to the 'More Nightmares' list.", "tool": "add_to_favorite", "actionable": true, "arguments": "{}"}}, {"data": {"id": "4", "label": "check_true_story\n(Task 4)", "task": "Check if the recommended movies are based on true stories.", "tool": "check_true_story", "actionable": true, "arguments": "{}"}}], "edges": [{"data": {"source": "0", "target": "1", "label": "movie"}}, {"data": {"source": "1", "target": "3", "label": "movies"}}, {"data": {"source": "1", "target": "4", "label": "movies"}}]},
+                style: [
+                    {
+                        selector: "node",
+                        style: {
+                            label: "data(label)",
+                            "text-wrap": "wrap",
+                            "text-max-width": "100px",
+                            "background-color": "#4286f4",
+                            color: "white",
+                            "text-valign": "center",
+                            "text-halign": "center",
+                            width: "120px",
+                            height: "120px",
+                            "font-size": "18px",
+                            "text-outline-width": 0,
+                            "text-outline-color": "#000",
+                        },
+                    },
+                    {
+                        selector: "edge",
+                        style: {
+                            label: "data(label)",
+                            "curve-style": "bezier",
+                            "target-arrow-shape": "triangle",
+                            "arrow-scale": 2,
+                            "line-color": "#0aa",
+                            "target-arrow-color": "#099",
+                            color: "#fff",
+                            "font-size": "18px",
+                            "text-rotation": "autorotate",
+                            "text-margin-y": -10,
+                        },
+                    },
+                    {
+                        selector: "node[actionable = false]",
+                        style: {
+                            "background-color": "#a3a",
+                            "border-color": "#a5a"
+                        },
+                    },
+                    {
+                        selector: "node:selected",
+                        style: {
+                            "border-width": "3px",
+                            "border-color": "#DAA520",
+                        },
+                    },
+                    {
+                        selector: ".highlighted",
+                        style: {
+                            "background-color": "#099",
+                            "line-color": "#ff7f50",
+                            "target-arrow-color": "#ff7f50",
+                            "transition-property": "background-color, line-color, target-arrow-color",
+                            "transition-duration": "0.5s",
+                        },
+                    },
+                ],
+                layout: {
+                    name: "dagre",
+                    rankDir: "LR",
+                    padding: 80,
+                    spacingFactor: 1.2,
+                    nodeSep: 100,
+                    rankSep: 200,
+                    edgeSep: 150,
+                    animate: true,
+                },
+            });
+
+            cy.on("tap", "node", function (evt) {
+                var node = evt.target;
+                var infoPanel = document.getElementById("info-panel");
+                infoPanel.innerHTML =
+                    "<h3>Task " +
+                    node.id() +
+                    "</h3>" +
+                    "<p><strong>Tool:</strong> " +
+                    node.data("tool") +
+                    "</p>" +
+                    "<p><strong>Task:</strong> " +
+                    node.data("task") +
+                    "</p>" +
+                    "<p><strong>Arguments:</strong> " +
+                    node.data("arguments") +
+                    "</p>";
+                infoPanel.style.display = "block";
+
+                // Highlight the selected node and its connected edges
+                cy.elements().removeClass("highlighted");
+                node.addClass("highlighted");
+                node.connectedEdges().addClass("highlighted");
+            });
+
+            cy.on("tap", function (evt) {
+                if (evt.target === cy) {
+                    document.getElementById("info-panel").style.display = "none";
+                    cy.elements().removeClass("highlighted");
+                }
+            });
+
+            // Add zoom and pan functionality
+            cy.on("mouseover", "node", function (e) {
+                document.body.style.cursor = "pointer";
+            });
+
+            cy.on("mouseout", "node", function (e) {
+                document.body.style.cursor = "default";
+            });
+
+            cy.on("zoom pan", function (e) {
+                document.getElementById("info-panel").style.display = "none";
+            });
+        </script>
+    </body>
+</html>

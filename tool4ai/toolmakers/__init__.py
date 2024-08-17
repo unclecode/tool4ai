@@ -14,11 +14,11 @@ class ToolMaker(ABC):
         pass
 
     @abstractmethod
-    async def make_tools(self, query: str, tools_info: Dict[str, Dict[str, Any]], context: Dict[str, Any]) -> Dict[str, Any]:
+    async def make_tools(self, query: str, tools_info: Dict[str, Dict[str, Any]], memory: List[Dict[str, Any]]) -> Dict[str, Any]:
         pass
 
     @abstractmethod
-    def _create_messages(self, query: str, context: Dict[str, Any]) -> List[Dict[str, Any]]:
+    def _create_messages(self, query: str, memory: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
         pass
     
     async def completion(self, 

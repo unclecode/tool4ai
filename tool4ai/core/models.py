@@ -7,15 +7,18 @@ class SubQuery(BaseModel):
     sub_query: str
     task: str
     tool: Optional[str] = None
+    other_tools: Optional[List[str]] = Field(default_factory=list)
     dependent_on: int = -1
     dependency_attr: Optional[str] = ""
     arguments: Optional[Dict[str, Any]] = Field(default_factory=dict)
     tool_missing: Optional[bool] = False
     result: Optional[str] = None 
+    help: Optional[str] = None
     status: Optional[str] = "pending"
     issue: Optional[str] = None
     actionable: Optional[bool] = True
     is_orphan: Optional[bool] = False
+    internal_memory: Optional[List[Dict[str, Any]]] = Field(default_factory=list)
 
 class SubQueryResponse(BaseModel):
     sub_queries: List[SubQuery]
@@ -33,6 +36,10 @@ class ExecutionResult(BaseModel):
     model_config = ConfigDict(extra='ignore')
     status: ExecutionStatus
     message: str
+    help: Optional[Union[List[str], str]] = None
+    issue: Optional[Union[List[str], str]] = None
     memory: List[Dict[str, Any]]
     sub_queries: List[SubQuery]
+    sub_query_need_attention: Optional[SubQuery] = None 
+    pasued_level: Optional[int] = None
     error_info: Optional[Dict[str, Any]] = None

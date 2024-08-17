@@ -17,8 +17,8 @@ class OpenAIToolMaker(ToolMaker):
             'total_tokens': 0
         })
     
-    async def make_tools(self, query: str, tools_info: Dict[str, Dict[str, Any]], context: Dict[str, Any]) -> Dict[str, Any]:
-        messages = self._create_messages(query, context)
+    async def make_tools(self, query: str, tools_info: Dict[str, Dict[str, Any]], memory: List[Dict[str, Any]]) -> Dict[str, Any]:
+        messages = self._create_messages(query, memory)
         tools = self.tool_convertor.convert(list(tools_info.values()))
 
         try:
@@ -35,8 +35,9 @@ class OpenAIToolMaker(ToolMaker):
             print(f"Error in OpenAI API call: {str(e)}")
             raise
 
-    def _create_messages(self, query: str, context: Dict[str, Any]) -> List[Dict[str, Any]]:
+    def _create_messages(self, query: str, memory: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
         messages = [{"role": "system", "content": self.system_prompt}]
-        messages.extend(context.get('memory', []))
-        messages.append({"role": "user", "content": query})
+        messages.extend(memory)
+        if query:
+            messages.append({"role": "user", "content": query})
         return messages
