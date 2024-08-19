@@ -12,10 +12,10 @@ class SubQuery(BaseModel):
     dependency_attr: Optional[str] = ""
     arguments: Optional[Dict[str, Any]] = Field(default_factory=dict)
     tool_missing: Optional[bool] = False
-    result: Optional[str] = None 
-    help: Optional[str] = None
+    result: Optional[str] = None
+    help: Optional[Union[str, List[str]]] = None
+    issue: Optional[Union[str, List]] = None
     status: Optional[str] = "pending"
-    issue: Optional[str] = None
     actionable: Optional[bool] = True
     is_orphan: Optional[bool] = False
     internal_memory: Optional[List[Dict[str, Any]]] = Field(default_factory=list)

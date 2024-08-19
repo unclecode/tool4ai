@@ -14,7 +14,7 @@ class ToolMaker(ABC):
         pass
 
     @abstractmethod
-    async def make_tools(self, query: str, tools_info: Dict[str, Dict[str, Any]], memory: List[Dict[str, Any]]) -> Dict[str, Any]:
+    async def make_tools(self, query: str, tools_info: Dict[str, Dict[str, Any]], memory: List[Dict[str, Any]] ) -> Dict[str, Any]:
         pass
 
     @abstractmethod

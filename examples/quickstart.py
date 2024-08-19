@@ -233,11 +233,11 @@ for i, sub_query in enumerate(graph.sub_queries.values()):
 
 ## 6. Visualizing the Graph
 # Generate a static PNG visualization
-# graph.visualize(output_file=os.path.join(__location__, "complex_query_graph"))
+graph.visualize(output_file=os.path.join(__location__, "complex_query_graph"))
 print("Static graph visualization saved as 'complex_query_graph.png'")
 
 # Generate an interactive HTML visualization
-# graph.generate_interactive_html(output_file=os.path.join(__location__, "complex_query_interactive.html"))
+graph.generate_interactive_html(output_file=os.path.join(__location__, "complex_query_interactive.html"))
 print("Interactive graph visualization saved as 'complex_query_interactive.html'")
 
 # If you need the graph data in Cytoscape JSON format

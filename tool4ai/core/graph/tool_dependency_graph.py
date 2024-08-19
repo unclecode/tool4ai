@@ -117,6 +117,7 @@ class ToolDependencyGraph:
         generate_interim_messages: bool = False,
         add_human_failed_memory: bool = False,
         resume_from_level: int = 0,
+        **kwargs,
     ) -> ExecutionResult:
         return await self.execution_strategy.execute(
             self,
@@ -129,6 +130,7 @@ class ToolDependencyGraph:
             generate_interim_messages = generate_interim_messages,
             add_human_failed_memory = add_human_failed_memory,
             resume_from_level = resume_from_level,
+            **kwargs,
         )
 
     async def _execute(

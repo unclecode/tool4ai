@@ -47,6 +47,9 @@ class GraphVisualizer:
                     "label": label,
                     "task": sub_query.task,
                     "tool": sub_query.tool,
+                    "help": sub_query.help,
+                    "issue": sub_query.issue,
+                    "sub_query": sub_query.sub_query,
                     "actionable": bool(sub_query.tool),
                     "arguments": json.dumps(sub_query.arguments) or "{}",
                 }
