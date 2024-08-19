@@ -114,6 +114,7 @@ class DefaultExecutionStrategy(ExecutionStrategy):
                     tools_info,
                     context,
                     tool_maker,
+                    **kwargs,
                 )
                 level_sub_queries = [item["sub_query"] for item in level_results]
 
@@ -203,7 +204,7 @@ class DefaultExecutionStrategy(ExecutionStrategy):
     ) -> List[Dict[str, Any]]:
         level_tasks = [
             self._execute_sub_query(
-                graph, index, tool_functions, tools_info, context, tool_maker
+                graph, index, tool_functions, tools_info, context, tool_maker, **kwargs
             )
             for index in indices
         ]
@@ -267,6 +268,7 @@ class DefaultExecutionStrategy(ExecutionStrategy):
             generate_interim_messages=generate_interim_messages,
             add_human_failed_memory = add_human_failed_memory,
             resume_from_level=resume_from_level,
+            **kwargs,
         )
 
     async def _execute_sub_query(
@@ -314,7 +316,10 @@ class DefaultExecutionStrategy(ExecutionStrategy):
 
                 if tool_name in tool_functions:
                     tool_result = {"tool_call_id": tool_id, "name": tool_name}
-                    result = await tool_functions[tool_name](arguments, kwargs.get("extra", {}))
+                    try:
+                        result = await tool_functions[tool_name](arguments, **kwargs.get("extra", {}))
+                    except TypeError:
+                        result = await tool_functions[tool_name](arguments)
                     result_dict = json.loads(result) if type(result) == str else result
                     result_json = json.dumps(result_dict, indent=4)
                     tool_result["result"] = result
